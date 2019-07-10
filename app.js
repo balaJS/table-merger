@@ -1,12 +1,14 @@
-var app = {};
-
-app.Merger = function() {
     var App = {
+        table_all: null,
+        table_matched: null,
+        table_unmatched: null,
+        all: {},
+        matched: {},
+        unmatched: {},
         init: function() {
-            this.table;
-            this.multipleTables;
             this.getformdata();
             this.show_form();
+            this.tab_switcher();
         },
         findLargeObj: function(args) {
             var arr1 = args[0];
@@ -38,11 +40,11 @@ app.Merger = function() {
                 isAvailable = keys_of_arr2.includes(key);
                 if(isAvailable) {
                     output[key] = args.first ? [elemObj[key], values_of_arr2[key]] : [values_of_arr2[key], elemObj[key]];
-                    delete args.large[index][key];
+                    delete args.large[index];
                     delete values_of_arr2[key];
                 } else {
                     output[key] = args.first ? [elemObj[key], '(empty)'] : ['(empty)', elemObj[key]];
-                    delete args.large[index][key];
+                    delete args.large[index];
                 }
             });
 
@@ -54,17 +56,32 @@ app.Merger = function() {
             }
             return output;
         },
-        sorting: function(args, isSort) {
-            if (!isSort) return args;
-            var sorted = {};
-            Object.keys(args).sort().forEach(function(elem) {
-                sorted[elem] = args[elem];
-            });
-            return sorted;
+        data_seperator: function(args, isSort = false) {
+            if (isSort) {
+                Object.keys(args).sort().forEach(function(elem) {
+                    App.all[elem] = args[elem];
+                    if (args[elem][0] === args[elem][1]) {
+                        App.matched[elem] = args[elem];
+                    } else {
+                        App.unmatched[elem] = args[elem];
+                    }
+                });
+            } else {
+                Object.keys(args).forEach(function(elem) {
+                    App.all[elem] = args[elem];
+                    if (args[elem][0] === args[elem][1]) {
+                        App.matched[elem] = args[elem];
+                    } else {
+                        App.unmatched[elem] = args[elem];
+                    }
+                });
+            }
+            return App.all;
         },
         get_template: function(key, value) {
+            let htmlClass = (value[0] === value[1]) ? 'green' : 'red';
             let template = `
-            <tr class="js-loop-tr">
+            <tr class="js-loop-tr ${htmlClass}">
                 <td class="js-loop-key-td">${key}</td>
                 <td class="js-loop-value-td">
                 <p>${value[0]}</p>
@@ -74,13 +91,17 @@ app.Merger = function() {
             `;
             return template;
         },
-        html_generator: function(args) {
+        html_generator: function($table, args) {
             const that = this;
-            $('.js-loop-tbody').html('');
+            let key, value, template;
+            var $tbody = $('tbody', $table);
+            $tbody.html('');
+
             Object.keys(args).forEach(function(elem) {
-                let key = elem; let value = args[elem];
-                let template = that.get_template(key, value);
-                $('.js-loop-tbody').append(template);
+                key = elem;
+                value = args[elem];
+                template = that.get_template(key, value);
+                $tbody.append(template);
             });
         },
         getformdata: function() {
@@ -91,21 +112,27 @@ app.Merger = function() {
                 if(!table1.length) { $('.field1').focus();return false; }
                 if(!table2.length) { $('.field2').focus();return false; }
 
-                that.data_to_html(table1, table2);
+                if (that.table_all) {
+                    that.table_all.destroy();
+                }
+                that.all = {};
+                that.matched = {};
+                that.unmatched = {};
+
+                that.data_from_html(table1, table2);
+                if ($('.js-nav-item a.active').length) {
+                  $('.js-nav-item a.active').trigger('click');
+                }
+                const $table_context = $('.tab-content');
+                that.table_all = $('#js-table', $table_context).DataTable();
 
                 $('.js-result-div').removeClass('hidden');
                 $('.js-data-getting-form').addClass('hidden');
-
-                if (that.table) {
-                    that.table.destroy();
-                }
-                that.table = $('.js-table').DataTable({
-                });
                 return false;
             });
             
         },
-        data_to_html: function(table1, table2) {
+        data_from_html: function(table1, table2) {
             const that = this;
             let data;
             let mutliTable1 = table1.map(function(index, element) {
@@ -119,14 +146,32 @@ app.Merger = function() {
                 }
             });
             data = that.data_formatter(mutliTable1, mutliTable2);
-            //let data = App.data_formatter(table1, table2);
-            //if you don't like obj sorting, then change the 2nd param to false;
-            that.main(data, false);
+            that.main(data);
         },
         show_form: function() {
             $('.js-show-form').click(function() {
                 $('.js-result-div').addClass('hidden');
                 $('.js-data-getting-form').removeClass('hidden');
+            });
+        },
+        tab_switcher: function() {
+            const that = this;
+            $('.js-nav-item a').on('click', function (e) {
+                e.preventDefault();
+                const $navitem = $(this);
+                $navitem.tab('show');
+                const $table_context = $('.tab-content');
+                let tablename = $navitem.data('table');
+                const $table = $('#' + tablename, $table_context);
+                let sourcename = $navitem.data('source');
+                const data = that[sourcename];
+                if (that['table_' + sourcename]) {
+                    that['table_' + sourcename].destroy();
+                }
+                that.html_generator($table, data);
+                that['table_' + sourcename] = $table.DataTable();
+                console.log(sourcename);console.log(tablename);
+                console.log(data);
             });
         },
         data_formatter: function(arg1, arg2) {
@@ -147,20 +192,17 @@ app.Merger = function() {
             });
             return data;
         },
-        main: function(args, isSort = true) {
+        main: function(args) {
             var findLargeObj = this.findLargeObj(args);
             var merged_data = this.merger(findLargeObj);
-            var sorted_data = this.sorting(merged_data, isSort);
-            this.html_generator(sorted_data);
-            return sorted_data;
+            let isSort = $('#js-is_sort:checked').length ? true : false;
+            var overall_result = this.data_seperator(merged_data, isSort);
+            this.html_generator($('#js-table'), overall_result);
         },
     };
-    App.init();
-    return App;
-};
 
 $(document).ready(function() {
-    app.Merger();
+    App.init();
 });
 
 // Below lines are sample data && used for developing purpose only
@@ -171,5 +213,4 @@ $(document).ready(function() {
 //     'bala1':'11','bala2':'22','raja3':'33','bala4':'44','bala5':'5','bala8':'8'
 // };
 // var args = [first, second];
-// var init = app.Merger();
-// console.table(init.main(args));
+// console.table(App.main(args));
