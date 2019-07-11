@@ -199,18 +199,107 @@
             var overall_result = this.data_seperator(merged_data, isSort);
             this.html_generator($('#js-table'), overall_result);
         },
+        // V2 code start here.
+        // Here we did level one filter, that means we filter same keys and value here.
+        result: {
+            'same_keys': [],
+            'same_values': [],
+            'keys1': [],
+            'values1': [],
+            'keys2': [],
+            'values2': [],
+        },
+        filter_one: function(argKeys1, argKeys2, argsValues1, argsValues2) {
+            const that = this;
+            let isKeyExists, index2, sameKeys;
+            let sameValues = [];
+
+            sameKeys = argKeys1.filter(function(key, index1) {
+                isKeyExists = argKeys2.includes(key);
+                if (isKeyExists) {
+                    index2 = argKeys2.indexOf(key);
+
+                    let values = {
+                        'first': argsValues1[index1],
+                        'second': argsValues2[index2],
+                    };
+                    sameValues.push(values);
+
+                    delete argKeys1[index1];
+                    delete argKeys2[index2];
+                    delete argsValues1[index1];
+                    delete argsValues2[index2];
+                    return key;
+                }
+            });
+
+            that.result['same_keys'] = sameKeys;
+            that.result['same_values'] = sameValues;
+            that.result['keys1'] = argKeys1;
+            that.result['values1'] = argsValues1;
+            that.result['keys2'] = argKeys2;
+            that.result['values2'] = argsValues2;
+        },
+        set_pair_value_for_keys: function(keys, values, isKeys1) {
+            let value = isKeys1 ? 'values1' : 'values2';
+            this.result[value] = keys.map(function(key, index1) {
+                let tempObj = {
+                    'first': isKeys1 ? values[index1] : '(empty)',
+                    'second': isKeys1 ? '(empty)' : values[index1]
+                };
+                return tempObj;
+            });
+        },
+        clean_result: function() {
+            this.result.keys1 = this.delete_key(this.result.keys1);
+            this.result.keys2 = this.delete_key(this.result.keys2);
+            this.result.values1 = this.delete_key(this.result.values1);
+            this.result.values2 = this.delete_key(this.result.values2);
+        },
+        delete_key: function(targetArray, index = -1, ) {
+            if (index === -1) {
+                return targetArray.filter(function(key) {
+                    return key;
+                });
+            }
+            targetArray.splice(index, 1);
+        },
+
     };
 
 $(document).ready(function() {
-    App.init();
-});
+    //App.init();
 
-// Below lines are sample data && used for developing purpose only
-// var first = {
-//     'raja1':'11','bala2':'22','bala3':'33','bala4':'44','bala6':'66','bala7':'77'
-// };
-// var second = {
-//     'bala1':'11','bala2':'22','raja3':'33','bala4':'44','bala5':'5','bala8':'8'
-// };
-// var args = [first, second];
-// console.table(App.main(args));
+    // Sample data for V2.
+    var keys1 = [
+        'name',
+        'age',
+        'name',
+        'hobby'
+    ];
+    var keys2 = [
+        'name',
+        'age',
+        'name',
+        'intrest'
+    ];
+    var values1 = [
+        'bala',
+        '24',
+        'haha',
+        'programming'
+    ];
+    var values2 = [
+        'bala',
+        '24',
+        'hehe',
+        'coding'
+    ];
+// App logic modification going on.
+App.filter_one(keys1, keys2, values1, values2);
+App.set_pair_value_for_keys(App.result.keys1, App.result.values1, true);
+App.set_pair_value_for_keys(App.result.keys2, App.result.values2, false);
+App.clean_result();
+console.log(App.result);
+
+});
